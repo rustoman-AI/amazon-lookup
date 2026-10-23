@@ -1,11 +1,54 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Sparkles, Scan, Cpu } from 'lucide-react';
+import { API_BASE } from '../services/aiService';
 
 interface ScanRadarOverlayProps {
   mode: 'live' | 'demo';
 }
 
 export const ScanRadarOverlay: React.FC<ScanRadarOverlayProps> = ({ mode }) => {
+  const [modelLabel, setModelLabel] = useState<string>('Amazon Nova Pro / AWS Bedrock');
+
+  useEffect(() => {
+    let mounted = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1000);
+
+    async function fetchHealth() {
+      try {
+        const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
+        if (!res.ok) return;
+        const data = await res.json();
+        const modelId: string | undefined = data?.model;
+        if (!mounted) return;
+        if (typeof modelId === 'string' && modelId.length > 0) {
+          const id = modelId.toLowerCase();
+          const name =
+            id.includes('nova-pro')
+              ? 'Amazon Nova Pro'
+              : id.includes('claude-3-5-sonnet')
+              ? 'Claude 3.5 Sonnet'
+              : id.includes('claude')
+              ? 'Claude'
+              : id.includes('nova')
+              ? 'Amazon Nova'
+              : modelId;
+          setModelLabel(`${name} / AWS Bedrock`);
+        }
+      } catch {
+        // Silent fallback to default label; do not disrupt demo/mock mode.
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    fetchHealth();
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, []);
+
   return (
     <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden select-none">
       {/* Darkened visual focus tint */}
@@ -69,7 +112,7 @@ export const ScanRadarOverlay: React.FC<ScanRadarOverlayProps> = ({ mode }) => {
       {/* Real-time telemetry badges */}
       <div className="absolute top-8 left-24 flex items-center gap-2 text-xs font-mono text-cyan-300/80 bg-black/60 px-3 py-1.5 rounded-lg border border-cyan-500/20 backdrop-blur-md">
         <Cpu className="w-3.5 h-3.5 text-amber-400" />
-        <span>MODEL: Claude 3.5 Sonnet / Vision API</span>
+        <span>MODEL: {modelLabel}</span>
       </div>
 
       <div className="absolute top-8 right-24 flex items-center gap-2 text-xs font-mono text-amber-300/80 bg-black/60 px-3 py-1.5 rounded-lg border border-amber-500/20 backdrop-blur-md">
